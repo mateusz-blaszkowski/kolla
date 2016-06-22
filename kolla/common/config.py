@@ -225,6 +225,10 @@ SOURCES = {
         'type': 'url',
         'location': ('http://github.com/kanaka/noVNC/tarball/'
                      'v0.5.1')},
+    'searchlight-base': {
+        'type': 'url',
+        'location': ('http://tarballs.openstack.org/searchlight/'
+                     'searchlight-master.tar.gz')},
     'swift-base': {
         'type': 'url',
         'location': ('http://tarballs.openstack.org/swift/'

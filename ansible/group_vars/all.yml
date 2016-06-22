@@ -187,6 +187,7 @@ enable_mistral: "no"
 enable_central_logging: "no"
 enable_mongodb: "no"
 enable_manila: "no"
+enable_searchlight: "yes"
 
 ironic_keystone_user: "ironic"
 neutron_keystone_user: "neutron"
