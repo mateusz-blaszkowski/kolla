@@ -56,9 +56,17 @@ RUN apt-get -y install --no-install-recommends \
 
 ADD neutron-base-archive /neutron-base-source
 RUN ln -s neutron-base-source/* neutron \
-    && useradd --user-group neutron \
-    && /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c requirements/upper-constraints.txt /neutron \
-    && mkdir -p /etc/neutron /usr/share/neutron /var/lib/neutron /home/neutron \
+    && useradd --user-group neutron
+
+{% if custom_pip_constraints %}
+RUN echo "Applying custom pip constraints"
+COPY custom_pip_constraints.txt /custom_pip_constraints.txt
+RUN /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c /custom_pip_constraints.txt /neutron
+{% else %}
+RUN /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c requirements/upper-constraints.txt /neutron
+{% endif %}
+
+RUN mkdir -p /etc/neutron /usr/share/neutron /var/lib/neutron /home/neutron \
     && cp -r /neutron/etc/* /etc/neutron/ \
     && cp -r /neutron/etc/neutron/* /etc/neutron/ \
     && cp /neutron/etc/api-paste.ini /usr/share/neutron \

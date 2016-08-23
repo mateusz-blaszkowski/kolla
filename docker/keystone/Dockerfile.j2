@@ -59,9 +59,17 @@ RUN echo > /etc/apache2/ports.conf
     {% endif %}
 ADD keystone-archive /keystone-source
 RUN ln -s keystone-source/* keystone \
-    && useradd --user-group keystone \
-    && /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c requirements/upper-constraints.txt /keystone \
-    && mkdir -p /etc/keystone /var/www/cgi-bin/keystone /var/log/apache2 /home/keystone \
+    && useradd --user-group keystone
+
+{% if custom_pip_constraints %}
+RUN echo "Applying custom pip constraints"
+COPY custom_pip_constraints.txt /custom_pip_constraints.txt
+RUN /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c /custom_pip_constraints.txt /keystone
+{% else %}
+RUN /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c requirements/upper-constraints.txt /keystone
+{% endif %}
+
+RUN mkdir -p /etc/keystone /var/www/cgi-bin/keystone /var/log/apache2 /home/keystone \
     && cp -r /keystone/etc/* /etc/keystone/ \
     && cp /var/lib/kolla/venv/bin/keystone-wsgi-admin /var/www/cgi-bin/keystone/admin \
     && cp /var/lib/kolla/venv/bin/keystone-wsgi-public /var/www/cgi-bin/keystone/main \

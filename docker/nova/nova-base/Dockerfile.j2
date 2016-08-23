@@ -47,9 +47,17 @@ RUN apt-get -y install --no-install-recommends \
 ADD nova-base-archive /nova-base-source
 RUN ln -s nova-base-source/* nova \
     && useradd --user-group --create-home --home-dir /var/lib/nova nova \
-    && chmod 755 /var/lib/nova \
-    && /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c requirements/upper-constraints.txt /nova \
-    && mkdir -p /etc/nova /var/lib/nova \
+    && chmod 755 /var/lib/nova
+
+{% if custom_pip_constraints %}
+RUN echo "Applying custom pip constraints"
+COPY custom_pip_constraints.txt /custom_pip_constraints.txt
+RUN /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c /custom_pip_constraints.txt /nova
+{% else %}
+RUN /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c requirements/upper-constraints.txt /nova
+{% endif %}
+
+RUN mkdir -p /etc/nova /var/lib/nova \
     && cp -r /nova/etc/nova/* /etc/nova/ \
     && chown -R nova: /etc/nova /var/lib/nova \
     && sed -i 's|^exec_dirs.*|exec_dirs=/var/lib/kolla/venv/bin,/sbin,/usr/sbin,/bin,/usr/bin,/usr/local/bin,/usr/local/sbin|g' /etc/nova/rootwrap.conf
