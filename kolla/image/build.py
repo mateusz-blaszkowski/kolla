@@ -308,6 +308,7 @@ class BuildTask(DockerTask):
                 git.Git().clone(source['source'], clone_dir)
                 git.Git(clone_dir).checkout(source['reference'])
                 reference_sha = git.Git(clone_dir).rev_parse('HEAD')
+                source['reference_sha'] = reference_sha
                 self.logger.debug("Git checkout by reference %s (%s)",
                                   source['reference'], reference_sha)
             except Exception as e:
@@ -438,6 +439,46 @@ class BuildTask(DockerTask):
         else:
             image.status = STATUS_BUILT
             self.logger.info('Built')
+
+        pip_packages = self.execute_in_container(image=image, cmd='pip freeze')
+        self.save_container_state_info(info=pip_packages,
+                                       out_filepath='pip_packages')
+        self.save_container_state_info(info=image.source.get('reference_sha'),
+                                       out_filepath='reference_sha')
+
+    def execute_in_container(self, image, cmd):
+        self.logger.info('Running command "%s" in image %s', cmd, image.name)
+        try:
+            container = self.dc.create_container(image=image.canonical_name,
+                                                 command=cmd)
+            container_id = container.get('Id')
+            self.dc.start(container=container_id)
+
+            # Wait for the command to be fully executed
+            for x in range(1, 5):
+                container_info = self.dc.inspect_container(container=
+                                                           container_id)
+                if container_info.get('State', {}).get('Status',
+                                                       {}) == 'Exited':
+                    break
+                time.sleep(5)
+
+            cmd_output = self.dc.logs(container=container_id)
+            self.dc.remove_container(container=container_id, force=True)
+            return cmd_output
+        except Exception as ex:
+            self.logger.info('Unable to execute command. Error: %s', ex)
+            return None
+
+    def save_container_state_info(self, info, out_filepath):
+        if not info:
+            return
+        output_filepath = os.path.join(self.image.path, out_filepath)
+        with open(output_filepath, 'w') as f:
+            f.write(str(info))
+        self.logger.info('Container state info saved in: %s ',
+                         output_filepath)
+
 
 
 class WorkerThread(threading.Thread):
@@ -653,6 +694,8 @@ class KollaWorker(object):
                       'install_type': self.install_type,
                       'namespace': self.namespace,
                       'tag': self.tag,
+                      # TODO: Make it configurable
+                      'custom_pip_constraints': True,
                       'maintainer': self.maintainer,
                       'kolla_version': kolla_version,
                       'image_name': image_name,
@@ -699,7 +742,10 @@ class KollaWorker(object):
 
     def cleanup(self):
         """Remove temp files"""
-        shutil.rmtree(self.temp_dir)
+        # Temporarily commented out so that the files with packages
+        # versions can be copied to another dir
+        # shutil.rmtree(self.temp_dir)
+        pass
 
     def filter_images(self):
         """Filter which images to build"""
