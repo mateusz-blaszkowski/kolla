@@ -5,8 +5,10 @@ MAINTAINER {{ maintainer }}
 
 RUN yum -y install \
         haproxy \
-        net-tools \
-    && yum clean all
+        net-tools
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
 
 {% elif base_distro in ['ubuntu'] %}
 

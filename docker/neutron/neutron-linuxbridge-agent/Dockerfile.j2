@@ -24,8 +24,11 @@ RUN apt-get -y install --no-install-recommends \
 # Install required packages
 RUN yum -y install \
         ebtables \
-        bridge-utils \
-    && yum clean all
+        bridge-utils
+
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
 
     {% elif base_distro in ['ubuntu'] %}
 RUN apt-get -y install \

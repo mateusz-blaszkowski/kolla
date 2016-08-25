@@ -13,9 +13,14 @@ RUN yum -y install \
         percona-xtrabackup \
         pv \
         tar \
-        expect \
-    && yum clean all \
-    && rm -rf /var/lib/mysql/*
+        expect
+
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
+
+
+RUN rm -rf /var/lib/mysql/*
 
 {% elif base_distro in ['ubuntu', 'debian'] %}
 

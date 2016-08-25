@@ -45,8 +45,11 @@ RUN yum -y install \
         genisoimage \
         iscsi-initiator-utils \
         targetcli \
-        python-rtslib \
-    && yum clean all
+        python-rtslib
+
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
 
     {% elif base_distro in ['ubuntu', 'debian'] %}
 

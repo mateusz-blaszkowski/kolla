@@ -25,6 +25,7 @@ import pprint
 import re
 import requests
 import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -242,7 +243,7 @@ class PushTask(DockerTask):
 class BuildTask(DockerTask):
     """Task that builds out an image."""
 
-    def __init__(self, conf, image, push_queue):
+    def __init__(self, conf, image, push_queue, yum_cache_dir):
         super(BuildTask, self).__init__()
         self.conf = conf
         self.image = image
@@ -250,6 +251,7 @@ class BuildTask(DockerTask):
         self.nocache = not conf.cache or conf.no_cache
         self.forcerm = not conf.keep
         self.logger = image.logger
+        self.yum_cache_dir = yum_cache_dir
 
     @property
     def name(self):
@@ -273,7 +275,8 @@ class BuildTask(DockerTask):
             ])
         if self.image.children and self.success:
             for image in self.image.children:
-                followups.append(BuildTask(self.conf, image, self.push_queue))
+                followups.append(BuildTask(self.conf, image, self.push_queue,
+                                           self.yum_cache_dir))
         return followups
 
     def process_source(self, image, source):
@@ -446,11 +449,19 @@ class BuildTask(DockerTask):
         self.save_container_state_info(info=image.source.get('reference_sha'),
                                        out_filepath='reference_sha')
 
-    def execute_in_container(self, image, cmd):
+        volumes = ['/tmp']
+        host_config = self.dc.create_host_config(binds=['/tmp:/tmp'])
+        cmd = 'find /var/cache/yum -type f -name *.rpm  -exec cp -n -t %s {} +' \
+              % self.yum_cache_dir
+        self.execute_in_container(image=image, cmd=cmd, volumes=volumes,
+                                  host_config=host_config)
+
+    def execute_in_container(self, image, cmd, volumes=[], host_config=None):
         self.logger.info('Running command "%s" in image %s', cmd, image.name)
         try:
             container = self.dc.create_container(image=image.canonical_name,
-                                                 command=cmd)
+                                                 command=cmd, volumes=volumes,
+                                                 host_config=host_config)
             container_id = container.get('Id')
             self.dc.start(container=container_id)
 
@@ -478,7 +489,6 @@ class BuildTask(DockerTask):
             f.write(str(info))
         self.logger.info('Container state info saved in: %s ',
                          output_filepath)
-
 
 
 class WorkerThread(threading.Thread):
@@ -648,6 +658,8 @@ class KollaWorker(object):
         ts = time.time()
         ts = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H-%M-%S_')
         self.temp_dir = tempfile.mkdtemp(prefix='kolla-' + ts)
+        self.yum_cache_dir = '%s_yum_cache' % self.temp_dir
+        os.makedirs(self.yum_cache_dir)
         self.working_dir = os.path.join(self.temp_dir, 'docker')
         shutil.copytree(self.images_dir, self.working_dir)
         self.copy_apt_files()
@@ -696,6 +708,7 @@ class KollaWorker(object):
                       'tag': self.tag,
                       # TODO: Make it configurable
                       'custom_pip_constraints': True,
+                      'collect_packages': True,
                       'maintainer': self.maintainer,
                       'kolla_version': kolla_version,
                       'image_name': image_name,
@@ -782,6 +795,16 @@ class KollaWorker(object):
         else:
             for image in self.images:
                 image.status = STATUS_MATCHED
+
+    def collect_packages(self):
+        createrepo_cmd = ['createrepo', self.yum_cache_dir]
+        push_to_s3_cmd = ['s3cmd', '-P', 'sync', self.yum_cache_dir,
+                          's3://yum_cache/', '--delete-removed']
+        try:
+            subprocess.call(createrepo_cmd)
+            subprocess.call(push_to_s3_cmd)
+        except Exception as ex:
+            LOG.error("Error while creating YUM repository: %s" % ex)
 
     def summary(self):
         """Walk the dictionary of images statuses and print results"""
@@ -949,7 +972,8 @@ class KollaWorker(object):
 
         for image in self.images:
             if image.parent is None:
-                queue.put(BuildTask(self.conf, image, push_queue))
+                queue.put(BuildTask(self.conf, image, push_queue,
+                                    self.yum_cache_dir))
                 LOG.info('Added image %s to queue', image.name)
 
         return queue
@@ -1029,6 +1053,7 @@ def run_build():
             queue.put(WorkerThread.tombstone)
             raise
 
+    kolla.collect_packages()
     kolla.summary()
     kolla.cleanup()
 

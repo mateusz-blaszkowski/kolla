@@ -35,8 +35,11 @@ RUN yum -y install \
         ipset \
         openvswitch \
         python-openvswitch \
-        uuid \
-    && yum clean all
+        uuid
+
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
 
     {% elif base_distro in ['ubuntu', 'debian'] %}
 

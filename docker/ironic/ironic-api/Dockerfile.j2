@@ -5,8 +5,10 @@ MAINTAINER {{ maintainer }}
     {% if base_distro in ['centos', 'fedora', 'oraclelinux', 'rhel'] %}
 
 RUN yum -y install \
-        openstack-ironic-api \
-    && yum clean all
+        openstack-ironic-api
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
 
     {% elif base_distro in ['ubuntu'] %}
 

@@ -5,8 +5,13 @@ MAINTAINER {{ maintainer }}
 
 RUN yum -y install \
         hostname \
-        https://github.com/rabbitmq/rabbitmq-server/releases/download/rabbitmq_v3_5_7/rabbitmq-server-3.5.7-1.noarch.rpm \
-    && yum clean all
+        https://github.com/rabbitmq/rabbitmq-server/releases/download/rabbitmq_v3_5_7/rabbitmq-server-3.5.7-1.noarch.rpm
+
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
+
+yum clean all
 
 {% elif base_distro == 'ubuntu' %}
 

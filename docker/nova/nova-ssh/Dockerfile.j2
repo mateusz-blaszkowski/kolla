@@ -4,8 +4,11 @@ MAINTAINER {{ maintainer }}
 {% if base_distro in ['centos', 'fedora', 'oraclelinux', 'rhel'] %}
 
 RUN yum -y install \
-        openssh-server \
-    && yum clean all
+        openssh-server
+
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
 
 {% elif base_distro in ['ubuntu', 'debian'] %}
 

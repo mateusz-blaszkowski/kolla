@@ -21,8 +21,11 @@ RUN apt-get -y install --no-install-recommends \
     {% if base_distro in ['centos', 'fedora', 'oraclelinux', 'rhel'] %}
 
 RUN yum -y install \
-        initscripts \
-    && yum clean all
+        initscripts
+
+{% if not collect_packages %}
+RUN yum clean all
+{% endif %}
 
     {% endif %}
 {% endif %}
